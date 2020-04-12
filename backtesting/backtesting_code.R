@@ -1,17 +1,14 @@
 # import libraries
-library("data.table")
 library("dplyr")
+library("data.table")
 library("ggplot2")
 library("tibble")
 library("lubridate")
 library("xts")
 library("stringr")
-library("xts")
 library("PerformanceAnalytics")
 library("quantmod")
-library("dplyr")
 library("purrr")
-library("ggplot2")
 library("magrittr")
 library("lazyeval")
 
