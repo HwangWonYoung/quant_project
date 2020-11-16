@@ -19,8 +19,7 @@ def load_required_df():
         idio_rt_latest_date = '20000101'
 
     # 가장 최근으로부터 2년 전 시점부터 데이터 추출
-    from_date = str(datetime.strptime(idio_rt_latest_date, '%Y%m%d').date() - timedelta(days=365 * 2 + 30)).replace("-",
-                                                                                                                    "")
+    from_date = str(datetime.strptime(idio_rt_latest_date, '%Y%m%d').date() - timedelta(days=365 * 2 + 30)).replace("-", "")
 
     # 필요한 기간의 데이터 추출
     price = pd.DataFrame(
@@ -52,8 +51,7 @@ def market_switched_codes(market_info):
 
 def get_last_residual(market_rt, stock_rt):
     """ year년 동안의 시장수익률과 종목수익률로 회귀분석을 돌린 결과 마지막 시점의 잔차 (설명변수:시장수익률, 반응변수:종목수익률) """
-    stock_rt_array = np.array(stock_rt)
-    market_rt_array = np.array(market_rt)
+    stock_rt_array, market_rt_array = np.array(stock_rt), np.array(market_rt)
     fitted_params = np.polyfit(market_rt_array, stock_rt_array, 1)
     predicted = np.polyval(fitted_params, market_rt_array)
     residuals = stock_rt_array - predicted
@@ -116,12 +114,12 @@ def return_idiosyncratic_set(price, index, market_info):
     kosdaq_stock_rt = stock_rt.loc[:, [i in kosdaq_codes for i in stock_rt.columns]]
     switched_stock_rt = stock_rt.loc[:, [i in switched_codes for i in stock_rt.columns]]
 
-    kospi_stock_rt = kospi_stock_rt.apply(lambda x: cal_idiosyncratic_return(list(market_rt['KOSPI']), x), axis=0,
+    kospi_stock_idio_rt = kospi_stock_rt.apply(lambda x: cal_idiosyncratic_return(list(market_rt['KOSPI']), x), axis=0,
                                           result_type='expand')
-    kosdaq_stock_rt = kosdaq_stock_rt.apply(lambda x: cal_idiosyncratic_return(list(market_rt['KOSDAQ']), x), axis=0,
+    kosdaq_stock_idio_rt = kosdaq_stock_rt.apply(lambda x: cal_idiosyncratic_return(list(market_rt['KOSDAQ']), x), axis=0,
                                             result_type='expand')
 
-    idio_rt_set = pd.concat([kospi_stock_rt, kosdaq_stock_rt], axis=1)
+    idio_rt_set = pd.concat([kospi_stock_idio_rt, kosdaq_stock_idio_rt], axis=1)
 
     switched_stock_idio_rt = dict()
     for i in switched_codes:
