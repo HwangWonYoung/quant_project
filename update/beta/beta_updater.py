@@ -10,16 +10,17 @@ from itertools import groupby
 
 
 def load_required_df():
-    """ idiosyncratic return 업데이트에 필요한 df 추출 """
+    """ beta 업데이트에 필요한 df 추출 """
     # 가장 최근 업데이트 날짜 추출
-    idio_rt_latest_date = exec_query(f'select max(date) from stock_db.d_idio_rt')
-    if len(idio_rt_latest_date) != 0:
-        idio_rt_latest_date = idio_rt_latest_date[0][0]
+    beta_latest_date = exec_query(f'select max(date) from stock_db.d_beta')
+    if len(beta_latest_date) != 0:
+        beta_latest_date = beta_latest_date[0][0]
     else:
-        idio_rt_latest_date = '20000101'
+        beta_latest_date = '20000101'
 
     # 가장 최근으로부터 2년 전 시점부터 데이터 추출
-    from_date = str(datetime.strptime(idio_rt_latest_date, '%Y%m%d').date() - timedelta(days=365 * 2 + 30)).replace("-", "")
+    from_date = str(datetime.strptime(beta_latest_date, '%Y%m%d').date() - timedelta(days=365 * 2 + 30)).replace("-",
+                                                                                                                 "")
 
     # 필요한 기간의 데이터 추출
     price = pd.DataFrame(
@@ -49,29 +50,30 @@ def market_switched_codes(market_info):
     return switched_codes, kospi_codes, kosdaq_codes
 
 
-def get_last_residual(market_rt, stock_rt):
-    """ year년 동안의 시장수익률과 종목수익률로 회귀분석을 돌린 결과 마지막 시점의 잔차 (설명변수:시장수익률, 반응변수:종목수익률) """
-    stock_rt_array, market_rt_array = np.array(stock_rt), np.array(market_rt)
+def single_beta(market_rt, stock_rt):
+    """ year년 동안의 시장수익률과 종목수익률로 회귀분석을 돌린 결과의 beta """
+    stock_rt_array = np.array(stock_rt)
+    market_rt_array = np.array(market_rt)
     fitted_params = np.polyfit(market_rt_array, stock_rt_array, 1)
-    predicted = np.polyval(fitted_params, market_rt_array)
-    residuals = stock_rt_array - predicted
-    return residuals[-1]
+    beta = fitted_params[0]
+
+    return beta
 
 
-def cal_idiosyncratic_return(market_rt, stock_rt, year=2):
-    """ n년간의 시장수익률과 종목수익률이 주어졌을 때 그 다음날의 고유수익을 return """
-    idio_rt = []
+def cal_beta(market_rt, stock_rt, year):
+    """ n년간의 시장수익률과 종목수익률이 주어졌을 때 해당 기간의 beta를 return """
+    beta_list = []
 
     for i in range(len(market_rt) - (252 * year)):
         input_X = market_rt[i:(i + 252 * year + 1)]
         input_Y = stock_rt[i:(i + 252 * year + 1)]
         try:
-            res = [get_last_residual(input_X, input_Y)]
+            beta = [single_beta(input_X, input_Y)]
         except:
-            res = [None]
-        idio_rt += res
+            beta = [None]
+        beta_list += beta
 
-    return idio_rt
+    return beta_list
 
 
 def market_return_for_switched_stock(stock_cd, market_info, index):
@@ -82,7 +84,7 @@ def market_return_for_switched_stock(stock_cd, market_info, index):
     market_hist = list(stock_cd_market_info.market)
     market_change = [(k, sum(1 for i in g)) for k, g in groupby(market_hist)]
 
-    market_rt = index.set_index('date').pct_change(1, fill_method=None)
+    market_rt = index.set_index('date').pct_change(1)
 
     if len(market_hist) < len(index):
         adjusted_index_return = [None] * (len(index) - len(market_hist))
@@ -100,13 +102,15 @@ def market_return_for_switched_stock(stock_cd, market_info, index):
     return adjusted_index_return[1:]
 
 
-def return_idiosyncratic_set(price, index, market_info):
+def return_beta_set(price, index, market_info):
     """ 종목 데이터(개별 종목 가격 및 속한 시장)와 시장 데이터(KOSPI & KOSDAQ)이 주어졌을 때,
-    계산 가능한 시기의 고유수익을 return """
+    계산 가능한 시기의 beta를 return """
     if ((set(price.date) == set(index.date) == set(market_info.date)) != True):
         stop("Dates should be equal")
 
-    stock_rt = pd.pivot_table(price, values='price', index=['date'], columns=['stock_cd']).pct_change(1, fill_method=None).iloc[1:, ]
+    stock_rt = pd.pivot_table(price, values='price', index=['date'], columns=['stock_cd']).pct_change(1,
+                                                                                                      fill_method=None).iloc[
+               1:, ]
     market_rt = index.set_index('date').pct_change(1, fill_method=None).iloc[1:, ]
 
     switched_codes, kospi_codes, kosdaq_codes = market_switched_codes(market_info)
@@ -114,27 +118,37 @@ def return_idiosyncratic_set(price, index, market_info):
     kosdaq_stock_rt = stock_rt.loc[:, [i in kosdaq_codes for i in stock_rt.columns]]
     switched_stock_rt = stock_rt.loc[:, [i in switched_codes for i in stock_rt.columns]]
 
-    kospi_stock_idio_rt = kospi_stock_rt.apply(lambda x: cal_idiosyncratic_return(list(market_rt['KOSPI']), x), axis=0,
-                                          result_type='expand')
-    kosdaq_stock_idio_rt = kosdaq_stock_rt.apply(lambda x: cal_idiosyncratic_return(list(market_rt['KOSDAQ']), x), axis=0,
-                                            result_type='expand')
+    kospi_stock_beta_1y = kospi_stock_rt.apply(lambda x: cal_beta(list(market_rt['KOSPI']), x, year=1), axis=0,
+                                               result_type='expand')
+    kospi_stock_beta_2y = kospi_stock_rt.apply(lambda x: cal_beta(list(market_rt['KOSPI']), x, year=2), axis=0,
+                                               result_type='expand')
+    kosdaq_stock_beta_1y = kosdaq_stock_rt.apply(lambda x: cal_beta(list(market_rt['KOSDAQ']), x, year=1), axis=0,
+                                                 result_type='expand')
+    kosdaq_stock_beta_2y = kosdaq_stock_rt.apply(lambda x: cal_beta(list(market_rt['KOSDAQ']), x, year=2), axis=0,
+                                                 result_type='expand')
 
-    switched_stock_idio_rt = dict()
+    switched_stock_beta_1y = dict()
+    switched_stock_beta_2y = dict()
     for i in switched_codes:
         adjusted_market_rt = market_return_for_switched_stock(i, market_info, index)
-        switched_stock_idio_rt[i] = cal_idiosyncratic_return(list(adjusted_market_rt), list(switched_stock_rt[i]))
-    switched_stock_idio_rt = pd.DataFrame(switched_stock_idio_rt)
+        switched_stock_beta_1y[i] = cal_beta(list(adjusted_market_rt), list(switched_stock_rt[i]), year=1)
+        switched_stock_beta_2y[i] = cal_beta(list(adjusted_market_rt), list(switched_stock_rt[i]), year=2)
 
-    idio_rt_set = pd.concat([kospi_stock_idio_rt, kosdaq_stock_idio_rt, switched_stock_idio_rt], axis=1)
+    switched_stock_beta_1y = pd.DataFrame(switched_stock_beta_1y)
+    switched_stock_beta_2y = pd.DataFrame(switched_stock_beta_2y)
 
-    idio_rt_set.index = stock_rt.tail(len(idio_rt_set)).index
+    beta_1y_set = pd.concat([kospi_stock_beta_1y, kosdaq_stock_beta_1y, switched_stock_beta_1y], axis=1)
+    beta_2y_set = pd.concat([kospi_stock_beta_2y, kosdaq_stock_beta_2y, switched_stock_beta_2y], axis=1)
 
-    return idio_rt_set
+    beta_1y_set.index = stock_rt.tail(len(beta_1y_set)).index
+    beta_2y_set.index = stock_rt.tail(len(beta_2y_set)).index
+
+    return beta_1y_set, beta_2y_set
 
 
-def update_idio_rt_table():
-    """ 서버db 업데이트(idio_rt table의 가장 최근 시점 이후의 idiosyncratic return만을 기존 db에 append) """
-    idio_rt_latest_date = exec_query(f'select max(date) from stock_db.d_idio_rt')[0][0]
+def update_beta_table():
+    """ 서버db 업데이트(beta table의 가장 최근 시점 이후의 beta만을 기존 db에 append) """
+    beta_latest_date = exec_query(f'select max(date) from stock_db.d_beta')[0][0]
 
     price, index, market_info = load_required_df()
 
@@ -144,9 +158,11 @@ def update_idio_rt_table():
         index = index.loc[index.date <= max_date, :]
         market_info = market_info.loc[market_info.date <= max_date, :]
 
-    updated_idio_rt = return_idiosyncratic_set(price, index, market_info)
-    updated_idio_rt = updated_idio_rt.reset_index().melt(id_vars="date", var_name="stock_cd", value_name="idio_rt")
-    updated_idio_rt = updated_idio_rt[['stock_cd', 'date', 'idio_rt']].dropna()
-    updated_idio_rt = updated_idio_rt.loc[updated_idio_rt.date > idio_rt_latest_date, :]
+    updated_beta_1y, updated_beta_2y = return_beta_set(price, index, market_info)
+    updated_beta_1y = updated_beta_1y.reset_index().melt(id_vars="date", var_name="stock_cd", value_name="beta_1y")
+    updated_beta_2y = updated_beta_2y.reset_index().melt(id_vars="date", var_name="stock_cd", value_name="beta_2y")
+    updated_beta = pd.merge(updated_beta_1y, updated_beta_2y, on=['date', 'stock_cd'], how='left').dropna()
+    updated_beta = updated_beta[['stock_cd', 'date', 'beta_1y', 'beta_2y']]
+    updated_beta = updated_beta.loc[updated_beta.date > beta_latest_date, :]
 
-    return updated_idio_rt
+    return updated_beta
