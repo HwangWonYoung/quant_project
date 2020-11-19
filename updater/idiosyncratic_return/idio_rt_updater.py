@@ -146,7 +146,7 @@ def update_idio_rt_table():
 
     updated_idio_rt = return_idiosyncratic_set(price, index, market_info)
     updated_idio_rt = updated_idio_rt.reset_index().melt(id_vars="date", var_name="stock_cd", value_name="idio_rt")
-    updated_idio_rt = updated_idio_rt[['stock_cd', 'date', 'idio_rt']]
+    updated_idio_rt = updated_idio_rt[['stock_cd', 'date', 'idio_rt']].dropna()
     updated_idio_rt = updated_idio_rt.loc[updated_idio_rt.date > idio_rt_latest_date, :]
 
     return updated_idio_rt
