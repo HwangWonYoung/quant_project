@@ -119,15 +119,13 @@ def return_idiosyncratic_set(price, index, market_info):
     kosdaq_stock_idio_rt = kosdaq_stock_rt.apply(lambda x: cal_idiosyncratic_return(list(market_rt['KOSDAQ']), x), axis=0,
                                             result_type='expand')
 
-    idio_rt_set = pd.concat([kospi_stock_idio_rt, kosdaq_stock_idio_rt], axis=1)
-
     switched_stock_idio_rt = dict()
     for i in switched_codes:
-        adjusted_stock_rt = market_return_for_switched_stock(i, market_info, index)
-        switched_stock_idio_rt[i] = cal_idiosyncratic_return(list(adjusted_stock_rt), list(switched_stock_rt[i]))
+        adjusted_market_rt = market_return_for_switched_stock(i, market_info, index)
+        switched_stock_idio_rt[i] = cal_idiosyncratic_return(list(adjusted_market_rt), list(switched_stock_rt[i]))
     switched_stock_idio_rt = pd.DataFrame(switched_stock_idio_rt)
 
-    idio_rt_set = pd.concat([idio_rt_set, switched_stock_idio_rt], axis=1)
+    idio_rt_set = pd.concat([kospi_stock_idio_rt, kosdaq_stock_idio_rt, switched_stock_idio_rt], axis=1)
 
     idio_rt_set.index = stock_rt.tail(len(idio_rt_set)).index
 
