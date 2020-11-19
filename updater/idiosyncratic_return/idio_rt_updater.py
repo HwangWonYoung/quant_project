@@ -82,7 +82,7 @@ def market_return_for_switched_stock(stock_cd, market_info, index):
     market_hist = list(stock_cd_market_info.market)
     market_change = [(k, sum(1 for i in g)) for k, g in groupby(market_hist)]
 
-    market_rt = index.set_index('date').pct_change(1)
+    market_rt = index.set_index('date').pct_change(1, fill_method=None)
 
     if len(market_hist) < len(index):
         adjusted_index_return = [None] * (len(index) - len(market_hist))
@@ -106,8 +106,8 @@ def return_idiosyncratic_set(price, index, market_info):
     if ((set(price.date) == set(index.date) == set(market_info.date)) != True):
         stop("Dates should be equal")
 
-    stock_rt = pd.pivot_table(price, values='price', index=['date'], columns=['stock_cd']).pct_change(1).iloc[1:, ]
-    market_rt = index.set_index('date').pct_change(1).iloc[1:, ]
+    stock_rt = pd.pivot_table(price, values='price', index=['date'], columns=['stock_cd']).pct_change(1, fill_method=None).iloc[1:, ]
+    market_rt = index.set_index('date').pct_change(1, fill_method=None).iloc[1:, ]
 
     switched_codes, kospi_codes, kosdaq_codes = market_switched_codes(market_info)
     kospi_stock_rt = stock_rt.loc[:, [i in kospi_codes for i in stock_rt.columns]]
