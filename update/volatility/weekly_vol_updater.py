@@ -117,9 +117,7 @@ def return_weekly_volatility_set(price, idio_rt, volatility_latest_date, idio_vo
 
 def update_weekly_vol_table():
     """ 서버db 업데이트(weekly_vol table & idio_weekly_vol table의 가장 최근 시점 이후의 volatility만을 기존 db에 append) """
-    weekly_volatility_latest_date = exec_query(f'select max(date) from stock_db.d_weekly_vol')[0][0]
-    idio_weekly_volatility_latest_date = exec_query(f'select max(date) from stock_db.d_idio_weekly_vol')[0][0]
-    price, idio_rt, volatility_latest_date, idio_volatility_latest_date = load_required_df()
+    price, idio_rt, weekly_volatility_latest_date, idio_weekly_volatility_latest_date = load_required_df()
 
     updated_weekly_vol, updated_idio_weekly_vol = return_weekly_volatility_set(price, idio_rt,
                                                                                volatility_latest_date, idio_volatility_latest_date)

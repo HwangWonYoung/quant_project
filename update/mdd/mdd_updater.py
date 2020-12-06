@@ -26,7 +26,7 @@ def load_required_df():
         exec_query(f'select `stock_cd`, `date`, `price` from stock_db.d_stock_price where date > {from_date}'))
     price.columns = ['stock_cd', 'date', 'price']
 
-    return price
+    return price, mdd_latest_date
 
 
 def cal_mdd(stock_pr, month):
@@ -46,8 +46,11 @@ def cal_mdd(stock_pr, month):
     return mdd
 
 
-def cal_mdd2(price_wide, month):
+def cal_mdd2(price_wide, month, mdd_latest_date):
     """ cal_mdd를 column wise 하게 df에 적용하여 tidy form의 결과물을 return """
+
+    from_index = int(np.where(price_wide.index == mdd_latest_date)[0]) - 21 * month
+    price_wide = price_wide.iloc[from_index:, ]
 
     mdd_wide = price_wide.apply(lambda x: cal_mdd(x, month), axis=0, result_type='expand')
     mdd_wide.index = price_wide.tail(len(mdd_wide)).index
@@ -59,16 +62,16 @@ def cal_mdd2(price_wide, month):
     return mdd_long
 
 
-def return_mdd_set(price):
+def return_mdd_set(price, mdd_latest_date):
     """ 계산 가능한 시기의 mdd를 return """
 
     price_wide = pd.pivot_table(price, values='price', index=['date'], columns=['stock_cd'])
 
-    mdd_1m = cal_mdd2(price_wide, 1)
-    mdd_3m = cal_mdd2(price_wide, 3)
-    mdd_6m = cal_mdd2(price_wide, 6)
-    mdd_12m = cal_mdd2(price_wide, 12)
-    mdd_24m = cal_mdd2(price_wide, 24)
+    mdd_1m = cal_mdd2(price_wide, 1, mdd_latest_date)
+    mdd_3m = cal_mdd2(price_wide, 3, mdd_latest_date)
+    mdd_6m = cal_mdd2(price_wide, 6, mdd_latest_date)
+    mdd_12m = cal_mdd2(price_wide, 12, mdd_latest_date)
+    mdd_24m = cal_mdd2(price_wide, 24, mdd_latest_date)
 
     mdd_set = mdd_1m.merge(
         mdd_3m, how='left', on=['stock_cd', 'date']).merge(
@@ -83,11 +86,10 @@ def return_mdd_set(price):
 
 def update_mdd_table():
     """ 서버db 업데이트(mdd table의 가장 최근 시점 이후의 mdd만을 기존 db에 append) """
-    mdd_latest_date = exec_query(f'select max(date) from stock_db.d_mdd')[0][0]
 
-    price = load_required_df()
+    price, mdd_latest_date = load_required_df()
 
-    updated_mdd = return_mdd_set(price)
+    updated_mdd = return_mdd_set(price, mdd_latest_date)
     updated_mdd = updated_mdd.loc[updated_mdd.date > mdd_latest_date, :]
 
     return updated_mdd
