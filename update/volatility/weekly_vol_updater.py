@@ -57,7 +57,8 @@ def cal_weekly_volatility(stock_rt, month, latest_date, idio=False):
     weekly_vol = []
 
     for i in range(len(stock_rt) - (21 * month)):
-        stock_rt_part = ((1 + stock_rt.iloc[i:(i + 21 * month + 1), :]).resample('W-MON').agg(custom_prod) - 1).std()
+        stock_rt_part = 1 + stock_rt.iloc[i:(i + 21 * month + 1), :]
+        stock_rt_part = (stock_rt_part.resample('W-MON').agg(custom_prod) - 1).std()
         weekly_vol += [stock_rt_part]
 
     weekly_vol = pd.concat(weekly_vol, 1).transpose()
